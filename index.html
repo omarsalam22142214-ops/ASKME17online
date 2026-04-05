@@ -59,11 +59,10 @@
             background-color: #2a2752; padding: 15px; border-radius: 10px; margin-bottom: 20px;
         }
         .score-card { background-color: #121026; padding: 10px; border-radius: 8px; min-width: 80px; font-weight: bold; border: 1px solid transparent; }
-        .active-player-card { border-color: #4caf50; background-color: #1e2a38; }
         
         .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-        .turn-box { background-color: #f9a826; color: #121026; padding: 10px 20px; border-radius: 8px; font-size: 1.2rem; font-weight: bold; flex: 1; text-align: center; }
-        .lang-switch { margin-right: 10px; background-color: #2a2752; color: white; border: 1px solid #f9a826; padding: 10px; border-radius: 8px; outline: none; font-weight: bold; cursor: pointer; }
+        .turn-box { background-color: #4caf50; color: white; padding: 10px 20px; border-radius: 8px; font-size: 1.2rem; font-weight: bold; flex: 1; text-align: center; }
+        .lang-switch { margin-right: 10px; background-color: #2a2752; color: white; border: 1px solid #4caf50; padding: 10px; border-radius: 8px; outline: none; font-weight: bold; cursor: pointer; }
         
         .question-text { font-size: 1.4rem; margin-bottom: 15px; line-height: 1.5; transition: 0.3s; }
         .answer-box { background-color: #1e2a38; padding: 15px; margin-bottom: 25px; border-radius: 5px; font-size: 1.2rem; color: #4caf50; font-weight: bold; transition: 0.3s; }
@@ -147,7 +146,7 @@
             <h3 id="current-category-title" style="color: #aaa; margin-top: 0; display: none;">جاري اللعب...</h3>
             <div class="scoreboard" id="scoreboard"></div>
             <div class="top-bar">
-                <div class="turn-box" id="turn-display">🎤 الدور على: ...</div>
+                <div class="turn-box" id="turn-display">🚀 أسرع واحد يجاوب بيكسب!</div>
                 <select id="in-game-lang" class="lang-switch" onchange="toggleInGameLang()">
                     <option value="ar">عربي 🇪🇬</option>
                     <option value="en">إنجليزي 🇬🇧</option>
@@ -159,7 +158,7 @@
             <div class="question-text" id="question-text">Loading question...</div>
             
             <div id="auto-judge-box" style="background-color: transparent; padding: 0; margin-bottom: 20px;">
-                <input type="text" id="player-answer-input" placeholder="اكتب إجابتك هنا..." style="width: 100%; padding: 15px; border-radius: 10px; border: 2px solid #3b82f6; text-align: center; font-size: 1.2rem; margin-bottom: 10px; background-color: #121026; color: white;">
+                <input type="text" id="player-answer-input" placeholder="اكتب إجابتك هنا بسرعة..." style="width: 100%; padding: 15px; border-radius: 10px; border: 2px solid #3b82f6; text-align: center; font-size: 1.2rem; margin-bottom: 10px; background-color: #121026; color: white;">
                 <button class="btn btn-full" id="submit-answer-btn" onclick="submitTypedAnswer()" style="margin-top: 0; background-color: #4caf50;">تأكيد الإجابة ✅</button>
             </div>
 
@@ -221,6 +220,8 @@
         let availableVoices = [];
         let questionTimer;
         let timeLeft = 30;
+        let localQuestionIndex = -1;
+        let isRevealing = false; // عشان التايمر ميضربش مرتين
 
         // --- دوال مساعدة عامة ---
         function showToast(message) {
@@ -310,8 +311,9 @@
                 playerOrder: [myName],
                 targetScore: 10,
                 currentLang: 'ar',
-                currentTurnIndex: 0,
+                questionStatus: 'playing', // حالتين: playing أو revealing
                 currentQuestionIndex: 0,
+                roundWinner: '', // مين اللي كسب النقطة
                 questions: [],
                 winner: null
             });
@@ -372,10 +374,47 @@
                     document.getElementById("in-game-lang").value = currentLang;
                     
                     if (onlineRoomData.questions && onlineRoomData.questions.length > 0) {
-                        // لو السؤال اتغير، اعرضه وشغل التايمر
-                        let qObj = onlineRoomData.questions[onlineRoomData.currentQuestionIndex];
-                        if (!currentDisplayedQuestion || currentDisplayedQuestion.q !== qObj.q) {
-                            displayQuestionToUI(qObj);
+                        
+                        // لو احنا في حالة "إظهار الإجابة" عشان حد جاوب صح أو الوقت خلص
+                        if (onlineRoomData.questionStatus === 'revealing') {
+                            if(!isRevealing) {
+                                isRevealing = true;
+                                clearInterval(questionTimer);
+                                
+                                // نقفل المربع ونظهر الإجابة الصح
+                                document.getElementById("player-answer-input").disabled = true;
+                                document.getElementById("submit-answer-btn").disabled = true;
+                                
+                                let correctAns = currentDisplayedQuestion.translatedA || currentDisplayedQuestion.a;
+                                document.getElementById("answer-text").parentElement.style.display = "block";
+                                
+                                let winnerText = onlineRoomData.roundWinner === 'لا أحد' ? "محدش عرف يجاوب! ⏳" : `النقطة راحت لـ: ${onlineRoomData.roundWinner} 👏`;
+                                document.getElementById("answer-text").innerHTML = `الإجابة الصح: <span style="color:white;">${correctAns}</span><br><span style="color:#f9a826; font-size:1rem;">${winnerText}</span>`;
+                                
+                                // الهوست هو اللي بيعمل التايمر بتاع الـ 3 ثواني عشان يقلب للسؤال اللي بعده
+                                if (isHost) {
+                                    setTimeout(() => {
+                                        let nextQ = (onlineRoomData.currentQuestionIndex + 1) % onlineRoomData.questions.length;
+                                        db.ref('trivia17_online/' + roomCode).update({
+                                            questionStatus: 'playing',
+                                            currentQuestionIndex: nextQ,
+                                            roundWinner: ''
+                                        });
+                                    }, 3000); // 3 ثواني بالظبط
+                                }
+                            }
+                        } 
+                        // لو إحنا في حالة اللعب العادية (سؤال جديد)
+                        else {
+                            isRevealing = false;
+                            document.getElementById("answer-text").parentElement.style.display = "none"; // اخفاء مربع الإجابة
+                            
+                            // نعرض السؤال لو اتغير
+                            if (onlineRoomData.currentQuestionIndex !== localQuestionIndex) {
+                                localQuestionIndex = onlineRoomData.currentQuestionIndex;
+                                let qObj = onlineRoomData.questions[localQuestionIndex];
+                                displayQuestionToUI(qObj);
+                            }
                         }
                     }
                     updateScoreboard();
@@ -468,7 +507,7 @@
                 currentLang: currentLang,
                 questions: combinedQuestions,
                 currentQuestionIndex: 0,
-                currentTurnIndex: 0
+                questionStatus: 'playing'
             });
         }
 
@@ -480,23 +519,15 @@
             timeLeft = 30;
             document.getElementById("timer-display").innerText = timeLeft + " ثانية";
             
-            let cpName = onlineRoomData.playerOrder[onlineRoomData.currentTurnIndex];
             let inputField = document.getElementById("player-answer-input");
             let submitBtn = document.getElementById("submit-answer-btn");
             
-            inputField.value = ""; // تفريغ المربع
-            
-            if (cpName === myName) {
-                inputField.disabled = false;
-                submitBtn.disabled = false;
-                inputField.placeholder = "اكتب إجابتك هنا بسرعة...";
-                submitBtn.style.backgroundColor = "#4caf50";
-            } else {
-                inputField.disabled = true;
-                submitBtn.disabled = true;
-                inputField.placeholder = `في انتظار إجابة ${cpName}...`;
-                submitBtn.style.backgroundColor = "#555";
-            }
+            // فتح المربع للكل
+            inputField.value = ""; 
+            inputField.disabled = false;
+            submitBtn.disabled = false;
+            inputField.placeholder = "اكتب إجابتك هنا بسرعة...";
+            submitBtn.style.backgroundColor = "#4caf50";
 
             questionTimer = setInterval(() => {
                 timeLeft--;
@@ -504,37 +535,45 @@
                 
                 if (timeLeft <= 0) {
                     clearInterval(questionTimer);
-                    if (cpName === myName) {
-                        showToast("الوقت خلص! نقصت نقطة ⏰");
-                        let correctAns = currentDisplayedQuestion.translatedA || currentDisplayedQuestion.a;
-                        setTimeout(() => showToast(`الإجابة كانت: ${correctAns}`), 1000);
-                        judgeAnswer(false); // نقص نقطة للوقت
+                    // الهوست بس هو اللي يدي إشارة إن الوقت خلص عشان السيرفر ميضربش
+                    if (isHost) {
+                        db.ref('trivia17_online/'+roomCode).update({ 
+                            questionStatus: 'revealing', 
+                            roundWinner: 'لا أحد' 
+                        });
                     }
                 }
             }, 1000);
         }
 
         function submitTypedAnswer() {
-            let cpName = onlineRoomData.playerOrder[onlineRoomData.currentTurnIndex];
-            if (cpName !== myName) return showToast("اصبر يا وحش، مش دورك! ✋");
-            
+            if(onlineRoomData.questionStatus === 'revealing') return showToast("الوقت خلص، استنى السؤال الجاي! ⏳");
+
             let typedInput = document.getElementById("player-answer-input").value;
             if (!typedInput.trim()) return showToast("اكتب إجابة الأول!");
 
-            clearInterval(questionTimer);
-
-            // تحديد الإجابة الصحيحة بناءً على الترجمة أو الأساسي
             let correctAns = currentDisplayedQuestion.translatedA || currentDisplayedQuestion.a;
-            
             let isCorrect = checkAnswerMatch(typedInput, correctAns);
             
             if(isCorrect) {
+                // جاوب صح!
                 showToast("إجابة صحيحة عاش! ✅");
+                let newScore = onlineRoomData.players[myName].score + 1;
+                
+                if(newScore >= onlineRoomData.targetScore) {
+                     db.ref('trivia17_online/'+roomCode).update({ status: 'finished', winner: myName, [`players/${myName}/score`]: newScore });
+                } else {
+                     db.ref('trivia17_online/'+roomCode).update({
+                         [`players/${myName}/score`]: newScore,
+                         questionStatus: 'revealing', // إيقاف اللعبة وكشف الإجابة للكل
+                         roundWinner: myName // إعلان إن ده اللي كسب
+                     });
+                }
             } else {
-                showToast(`غلط! الإجابة هي: ${correctAns} ❌`);
+                // جاوب غلط! الاسكور ثابت والمربع يفضى
+                showToast("إجابة غلط! جرب تاني بسرعة ❌");
+                document.getElementById("player-answer-input").value = ""; 
             }
-
-            judgeAnswer(isCorrect);
         }
 
         // ==========================================
@@ -558,11 +597,10 @@
         function updateScoreboard() {
             const board = document.getElementById("scoreboard");
             board.innerHTML = "";
-            let currentTurnName = onlineRoomData.playerOrder[onlineRoomData.currentTurnIndex];
 
             onlineRoomData.playerOrder.forEach((playerName) => {
                 const div = document.createElement("div");
-                div.className = playerName === currentTurnName ? "score-card active-player-card" : "score-card";
+                div.className = "score-card"; // شيلنا التمييز عشان الكل بيلعب
                 
                 div.innerHTML = `
                     <div style="margin-bottom: 5px;">${playerName}</div>
@@ -572,12 +610,11 @@
                 `;
                 board.appendChild(div);
             });
-            document.getElementById("turn-display").innerText = `🎤 الدور على: ${currentTurnName}`;
         }
 
         async function displayQuestionToUI(qObj) {
             currentDisplayedQuestion = qObj;
-            currentDisplayedQuestion.translatedA = null; // تفريغ الترجمة القديمة
+            currentDisplayedQuestion.translatedA = null; 
             
             const qEl = document.getElementById("question-text");
             const transBtn = document.getElementById("translate-btn");
@@ -598,9 +635,10 @@
                         const aData = await aRes.json();
                         qEl.innerText = qData.responseData.translatedText;
                         currentDisplayedQuestion.translatedA = aData.responseData.translatedText;
-                        startTimer(); // شغل التايمر بعد الترجمة
+                        startTimer(); 
                     } catch (e) {
-                        qEl.innerText = "مشكلة في الترجمة 😅"; setTimeout(skipQuestion, 2000);
+                        qEl.innerText = "مشكلة في الترجمة 😅"; 
+                        if(isHost) setTimeout(skipQuestion, 2000);
                     }
                 } else {
                     qEl.innerText = qObj.q; 
@@ -634,30 +672,12 @@
             transBtn.innerText = "ترجم للعربي 🌐"; transBtn.disabled = false;
         }
 
-        function judgeAnswer(isCorrect) {
-            let cpName = onlineRoomData.playerOrder[onlineRoomData.currentTurnIndex];
-            
-            if (cpName !== myName) return; // الحماية عشان اللعيبة التانية متلعبش في النقط
-
-            let newScore = onlineRoomData.players[cpName].score + (isCorrect ? 1 : -1);
-            
-            if(newScore >= onlineRoomData.targetScore) {
-                 db.ref('trivia17_online/'+roomCode).update({ status: 'finished', winner: cpName });
-            } else {
-                 let nextTurn = (onlineRoomData.currentTurnIndex + 1) % onlineRoomData.playerOrder.length;
-                 let nextQ = onlineRoomData.currentQuestionIndex + 1;
-                 db.ref('trivia17_online/'+roomCode).update({
-                     [`players/${cpName}/score`]: newScore,
-                     currentTurnIndex: nextTurn,
-                     currentQuestionIndex: nextQ
-                 });
-            }
-        }
-
         function skipQuestion() { 
-            let cpName = onlineRoomData.playerOrder[onlineRoomData.currentTurnIndex];
-            if (cpName !== myName && !isHost) return showToast("صاحب الدور أو الهوست بس يقدر يتخطى!");
-            db.ref('trivia17_online/'+roomCode).update({ currentQuestionIndex: onlineRoomData.currentQuestionIndex + 1 });
+            if (!isHost) return showToast("الهوست بس يقدر يتخطى السؤال!");
+            db.ref('trivia17_online/'+roomCode).update({ 
+                questionStatus: 'revealing', 
+                roundWinner: 'تم التخطي' 
+            });
         }
 
         function showWinner(winnerName) { 
