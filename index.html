@@ -1,5 +1,4 @@
-<html lang="ar" dir="rtl">
-<head>
+<html lang="ar" dir="rtl"><head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>تحديات عمارة 17 - أونلاين</title>
@@ -69,9 +68,6 @@
         .question-text { font-size: 1.4rem; margin-bottom: 15px; line-height: 1.5; transition: 0.3s; }
         .answer-box { background-color: #1e2a38; padding: 15px; margin-bottom: 25px; border-radius: 5px; font-size: 1.2rem; color: #4caf50; font-weight: bold; transition: 0.3s; }
         
-        .judge-controls { display: flex; gap: 15px; margin-bottom: 10px; }
-        .btn-correct { background-color: #4caf50; flex: 1; padding: 15px; font-size: 1.2rem; border-radius: 10px; }
-        .btn-wrong { background-color: #f44336; flex: 1; padding: 15px; font-size: 1.2rem; border-radius: 10px;}
         .btn-translate { background-color: #3b82f6; width: 100%; padding: 12px; font-size: 1.1rem; border-radius: 10px; color: white; margin-bottom: 10px; transition: 0.3s; }
         .btn-skip { background-color: #4b5563; width: 100%; padding: 12px; font-size: 1.1rem; border-radius: 10px; color: #d1d5db; transition: 0.3s; }
         
@@ -157,17 +153,22 @@
                     <option value="en">إنجليزي 🇬🇧</option>
                 </select>
             </div>
+            
+            <div id="timer-display" style="font-size: 2.5rem; color: #e94560; font-weight: bold; margin-bottom: 10px; text-align: center;">30 ثانية</div>
+            
             <div class="question-text" id="question-text">Loading question...</div>
-            <div class="answer-box">
+            
+            <div id="auto-judge-box" style="background-color: transparent; padding: 0; margin-bottom: 20px;">
+                <input type="text" id="player-answer-input" placeholder="اكتب إجابتك هنا..." style="width: 100%; padding: 15px; border-radius: 10px; border: 2px solid #3b82f6; text-align: center; font-size: 1.2rem; margin-bottom: 10px; background-color: #121026; color: white;">
+                <button class="btn btn-full" id="submit-answer-btn" onclick="submitTypedAnswer()" style="margin-top: 0; background-color: #4caf50;">تأكيد الإجابة ✅</button>
+            </div>
+
+            <div class="answer-box" style="display: none;">
                 <span id="answer-text">...</span>
             </div>
-            <div class="judge-controls">
-                <button class="btn btn-wrong" onclick="judgeAnswer(false)">غلط -1 ❌</button>
-                <button class="btn btn-correct" onclick="judgeAnswer(true)">صح +1 ✅</button>
-            </div>
+
             <button class="btn btn-translate" id="translate-btn" onclick="translateCurrent()">ترجم للعربي 🌐</button>
-            
-            <select id="voice-select" style="width: 100%; margin-bottom: 10px; padding: 12px; border-radius: 10px; border: none; font-size: 1rem; background-color: #2a2752; color: white; outline: none;"></select>
+            <select id="voice-select" style="width: 100%; margin-bottom: 10px; padding: 12px; border-radius: 10px; border: none; font-size: 1rem; background-color: #2a2752; color: white; outline: none;"><option value="Microsoft Hoda - Arabic (Egypt)">🎤 Microsoft Hoda - Arabic (Egypt) (ar-EG)</option></select>
             <button class="btn btn-full" id="speak-btn" onclick="readQuestion()" style="background-color: #9c27b0; margin-bottom: 10px; color: white;">اسمع السؤال 🔊</button>
             <button class="btn btn-skip" onclick="skipQuestion()">تخطي السؤال ⏭️</button>
             <button class="btn btn-skip" style="margin-top: 10px; background-color: #e74c3c; color: white;" onclick="location.reload()">خروج من الجيم 🚪</button>
@@ -185,7 +186,7 @@
     </footer>
 
     <script>
-        // إعدادات Firebase الخاصة بيك (جاهزة)
+        // إعدادات Firebase الخاصة بيك 
         const firebaseConfig = {
             apiKey: "AIzaSyBtIkF-UhkeFa-cxutgJAQpR7K_IjKxloc",
             authDomain: "spygame-337ee.firebaseapp.com",
@@ -218,6 +219,8 @@
         let arabicQuestions = [], englishQuestions = [];
         let currentDisplayedQuestion = null;
         let availableVoices = [];
+        let questionTimer;
+        let timeLeft = 30;
 
         // --- دوال مساعدة عامة ---
         function showToast(message) {
@@ -241,6 +244,25 @@
             var txt = document.createElement("textarea");
             txt.innerHTML = html;
             return txt.value;
+        }
+
+        // --- دالة التصحيح الذكي ---
+        function normalizeArabic(text) {
+            if(!text) return "";
+            return text.replace(/[أإآ]/g, 'ا')
+                       .replace(/ة/g, 'ه')
+                       .replace(/ى/g, 'ي')
+                       .replace(/[^\w\s\u0600-\u06FF]/g, '') 
+                       .trim().toLowerCase();
+        }
+
+        function checkAnswerMatch(input, correct) {
+            let i = normalizeArabic(input);
+            let c = normalizeArabic(correct);
+            if(i === c) return true;
+            if(c.includes(i) && i.length >= 3) return true;
+            if(i.includes(c) && c.length >= 3) return true;
+            return false;
         }
 
         // --- الأصوات ---
@@ -350,12 +372,16 @@
                     document.getElementById("in-game-lang").value = currentLang;
                     
                     if (onlineRoomData.questions && onlineRoomData.questions.length > 0) {
+                        // لو السؤال اتغير، اعرضه وشغل التايمر
                         let qObj = onlineRoomData.questions[onlineRoomData.currentQuestionIndex];
-                        if (qObj) displayQuestionToUI(qObj);
+                        if (!currentDisplayedQuestion || currentDisplayedQuestion.q !== qObj.q) {
+                            displayQuestionToUI(qObj);
+                        }
                     }
                     updateScoreboard();
                 }
                 else if (onlineRoomData.status === 'finished') {
+                    clearInterval(questionTimer);
                     showWinner(onlineRoomData.winner);
                 }
             });
@@ -401,7 +427,6 @@
                 if(unifiedCategories[cat].localEn) englishQuestions = englishQuestions.concat(unifiedCategories[cat].localEn);
             });
 
-            // 1. سحب الأسئلة من جوجل شيت (نفس رابط الأوفلاين)
             try {
                 const sheetApiUrl = 'https://sheetdb.io/api/v1/fedbt2p5bnzp1'; 
                 const response = await fetch(sheetApiUrl);
@@ -416,7 +441,6 @@
                 showToast("النت ضعيف، هنلعب بالأسئلة الأساسية 📶");
             }
 
-            // 2. سحب من API الإنجليزي
             for (const cat of selectedCategories) {
                 const apiId = unifiedCategories[cat].apiId;
                 if (apiId !== null) {
@@ -437,7 +461,6 @@
             
             startBtn.innerText = "تحميل وبدء اللعب 🚀"; startBtn.disabled = false;
             
-            // رفع الأسئلة كلها للفايربيز وبدء الجيم لكل الناس
             let combinedQuestions = currentLang === 'ar' ? arabicQuestions : englishQuestions;
             db.ref('trivia17_online/' + roomCode).update({
                 status: 'playing',
@@ -450,7 +473,72 @@
         }
 
         // ==========================================
-        //             منطق عرض الأسئلة والتقييم
+        //         التايمر ونظام التقييم التلقائي
+        // ==========================================
+        function startTimer() {
+            clearInterval(questionTimer);
+            timeLeft = 30;
+            document.getElementById("timer-display").innerText = timeLeft + " ثانية";
+            
+            let cpName = onlineRoomData.playerOrder[onlineRoomData.currentTurnIndex];
+            let inputField = document.getElementById("player-answer-input");
+            let submitBtn = document.getElementById("submit-answer-btn");
+            
+            inputField.value = ""; // تفريغ المربع
+            
+            if (cpName === myName) {
+                inputField.disabled = false;
+                submitBtn.disabled = false;
+                inputField.placeholder = "اكتب إجابتك هنا بسرعة...";
+                submitBtn.style.backgroundColor = "#4caf50";
+            } else {
+                inputField.disabled = true;
+                submitBtn.disabled = true;
+                inputField.placeholder = `في انتظار إجابة ${cpName}...`;
+                submitBtn.style.backgroundColor = "#555";
+            }
+
+            questionTimer = setInterval(() => {
+                timeLeft--;
+                document.getElementById("timer-display").innerText = timeLeft + " ثانية";
+                
+                if (timeLeft <= 0) {
+                    clearInterval(questionTimer);
+                    if (cpName === myName) {
+                        showToast("الوقت خلص! نقصت نقطة ⏰");
+                        let correctAns = currentDisplayedQuestion.translatedA || currentDisplayedQuestion.a;
+                        setTimeout(() => showToast(`الإجابة كانت: ${correctAns}`), 1000);
+                        judgeAnswer(false); // نقص نقطة للوقت
+                    }
+                }
+            }, 1000);
+        }
+
+        function submitTypedAnswer() {
+            let cpName = onlineRoomData.playerOrder[onlineRoomData.currentTurnIndex];
+            if (cpName !== myName) return showToast("اصبر يا وحش، مش دورك! ✋");
+            
+            let typedInput = document.getElementById("player-answer-input").value;
+            if (!typedInput.trim()) return showToast("اكتب إجابة الأول!");
+
+            clearInterval(questionTimer);
+
+            // تحديد الإجابة الصحيحة بناءً على الترجمة أو الأساسي
+            let correctAns = currentDisplayedQuestion.translatedA || currentDisplayedQuestion.a;
+            
+            let isCorrect = checkAnswerMatch(typedInput, correctAns);
+            
+            if(isCorrect) {
+                showToast("إجابة صحيحة عاش! ✅");
+            } else {
+                showToast(`غلط! الإجابة هي: ${correctAns} ❌`);
+            }
+
+            judgeAnswer(isCorrect);
+        }
+
+        // ==========================================
+        //             منطق عرض الأسئلة
         // ==========================================
         function toggleInGameLang() {
             currentLang = document.getElementById("in-game-lang").value;
@@ -489,38 +577,40 @@
 
         async function displayQuestionToUI(qObj) {
             currentDisplayedQuestion = qObj;
+            currentDisplayedQuestion.translatedA = null; // تفريغ الترجمة القديمة
+            
             const qEl = document.getElementById("question-text");
-            const aEl = document.getElementById("answer-text");
             const transBtn = document.getElementById("translate-btn");
+            
+            clearInterval(questionTimer);
+            document.getElementById("timer-display").innerText = "⏳";
             
             if (currentLang === 'ar') {
                 qEl.style.direction = "rtl"; qEl.style.textAlign = "right";
-                aEl.parentElement.style.direction = "rtl"; aEl.parentElement.style.textAlign = "right";
-                aEl.parentElement.style.borderRight = "5px solid #4caf50"; aEl.parentElement.style.borderLeft = "none";
                 transBtn.style.display = "none"; 
                 
                 if (qObj.isFromApi) {
-                    qEl.innerText = "جاري الترجمة من النت... ⏳"; aEl.innerHTML = `الإجابة: <span style="color:white;">...</span>`;
+                    qEl.innerText = "جاري الترجمة من النت... ⏳"; 
                     try {
                         const qRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(qObj.q)}&langpair=en|ar`);
                         const qData = await qRes.json();
                         const aRes = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(qObj.a)}&langpair=en|ar`);
                         const aData = await aRes.json();
                         qEl.innerText = qData.responseData.translatedText;
-                        aEl.innerHTML = `الإجابة: <span style="color:white;">${aData.responseData.translatedText}</span>`;
+                        currentDisplayedQuestion.translatedA = aData.responseData.translatedText;
+                        startTimer(); // شغل التايمر بعد الترجمة
                     } catch (e) {
                         qEl.innerText = "مشكلة في الترجمة 😅"; setTimeout(skipQuestion, 2000);
                     }
                 } else {
-                    qEl.innerText = qObj.q; aEl.innerHTML = `الإجابة: <span style="color:white;">${qObj.a}</span>`;
+                    qEl.innerText = qObj.q; 
+                    startTimer();
                 }
             } else {
                 qEl.style.direction = "ltr"; qEl.style.textAlign = "left";
-                aEl.parentElement.style.direction = "ltr"; aEl.parentElement.style.textAlign = "left";
-                aEl.parentElement.style.borderLeft = "5px solid #4caf50"; aEl.parentElement.style.borderRight = "none";
-                aEl.innerHTML = `Answer: <span style="color:white;">${qObj.a}</span>`;
                 transBtn.style.display = "block"; 
                 qEl.innerText = qObj.q;
+                startTimer();
             }
         }
 
@@ -535,13 +625,10 @@
                 const aData = await aRes.json();
                 
                 const qEl = document.getElementById("question-text");
-                const aEl = document.getElementById("answer-text");
-                
                 qEl.innerText = qData.responseData.translatedText;
                 qEl.style.direction = "rtl"; qEl.style.textAlign = "right";
-                aEl.parentElement.style.direction = "rtl"; aEl.parentElement.style.textAlign = "right";
-                aEl.parentElement.style.borderRight = "5px solid #4caf50"; aEl.parentElement.style.borderLeft = "none";
-                aEl.innerHTML = `الإجابة (مترجمة): <span style="color:white;">${aData.responseData.translatedText}</span>`;
+                
+                currentDisplayedQuestion.translatedA = aData.responseData.translatedText;
                 transBtn.style.display = "none"; 
             } catch (e) { showToast("مشكلة في الترجمة 📶"); }
             transBtn.innerText = "ترجم للعربي 🌐"; transBtn.disabled = false;
@@ -550,9 +637,7 @@
         function judgeAnswer(isCorrect) {
             let cpName = onlineRoomData.playerOrder[onlineRoomData.currentTurnIndex];
             
-            if (cpName !== myName) {
-                return showToast("اصبر يا وحش، مش دورك! ✋");
-            }
+            if (cpName !== myName) return; // الحماية عشان اللعيبة التانية متلعبش في النقط
 
             let newScore = onlineRoomData.players[cpName].score + (isCorrect ? 1 : -1);
             
@@ -593,5 +678,5 @@
             window.speechSynthesis.speak(utterance);
         }
     </script>
-</body>
-</html>
+
+</body></html>
