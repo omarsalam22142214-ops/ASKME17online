@@ -86,7 +86,7 @@
         ::-webkit-scrollbar-track { background: #121026; }
         ::-webkit-scrollbar-thumb { background: #2a2752; border-radius: 10px; }
     </style>
-</head>
+<style>:is([id*='google_ads_iframe'],[id*='taboola-'],.taboolaHeight,.taboola-placeholder,#top-ad,#credential_picker_container,#credentials-picker-container,#credential_picker_iframe,[id*='google-one-tap-iframe'],#google-one-tap-popup-container,.google-one-tap__module,.google-one-tap-modal-div,#amp_floatingAdDiv,#ez-content-blocker-container) {display:none!important;min-height:0!important;height:0!important;}</style></head>
 <body>
     <div id="toast" class="toast-msg"></div>
     <div class="container">
@@ -95,11 +95,11 @@
             <h1>🌐 عمارة 17 - أونلاين</h1>
             <p style="color: #aaa; margin-bottom: 20px;">كل واحد يدخل من جهازه ونلعب سوا!</p>
             
-            <input type="text" id="online-name" placeholder="اكتب اسمك هنا..." style="margin-bottom: 15px;">
+            <input type="text" id="online-name" placeholder="اكتب اسمك هنا..." style="margin-bottom: 15px;" data-ddg-inputtype="unknown">
             <button class="btn btn-full" onclick="createOnlineRoom()">➕ إنشاء غرفة جديدة</button>
             <div style="margin: 20px 0; border-bottom: 1px solid #2a2752;"></div>
             <p>أو ادخل كود غرفة موجودة:</p>
-            <input type="number" id="online-room-code" placeholder="مثال: 1234" style="margin-bottom: 15px;">
+            <input type="number" id="online-room-code" placeholder="مثال: 1234" style="margin-bottom: 15px;" data-ddg-inputtype="unknown">
             <button class="btn" style="width: 100%; background-color: #4caf50;" onclick="joinOnlineRoom()">🔑 انضمام للغرفة</button>
         </div>
 
@@ -158,7 +158,7 @@
             <div class="question-text" id="question-text">Loading question...</div>
             
             <div id="auto-judge-box" style="background-color: transparent; padding: 0; margin-bottom: 20px;">
-                <input type="text" id="player-answer-input" placeholder="اكتب إجابتك هنا بسرعة..." style="width: 100%; padding: 15px; border-radius: 10px; border: 2px solid #3b82f6; text-align: center; font-size: 1.2rem; margin-bottom: 10px; background-color: #121026; color: white;">
+                <input type="text" id="player-answer-input" placeholder="اكتب إجابتك هنا بسرعة..." style="width: 100%; padding: 15px; border-radius: 10px; border: 2px solid #3b82f6; text-align: center; font-size: 1.2rem; margin-bottom: 10px; background-color: #121026; color: white;" data-ddg-inputtype="unknown">
                 <button class="btn btn-full" id="submit-answer-btn" onclick="submitTypedAnswer()" style="margin-top: 0; background-color: #4caf50;">تأكيد الإجابة ✅</button>
             </div>
 
@@ -180,8 +180,13 @@
         </div>
     </div>
     
-    <footer>
-        <p style="font-size: 18px; font-weight: bold;">© 2026 - 2027 ENG OMAR . All Rights Reserved.</p>
+    <footer style="background: rgba(13, 17, 30, 0.45); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border-top: 1px solid rgba(255, 255, 255, 0.15); padding: 30px 20px; text-align: center; color: #fff; margin-top: 40px; box-shadow: 0 -10px 30px rgba(0,0,0,0.5);">
+        <p style="font-size: 22px; font-weight: bold; text-shadow: 0 0 10px rgba(255,255,255,0.4); margin-bottom: 10px; letter-spacing: 1px;">© 2027 _ 2026 ENG OMAR TV. All Rights Reserved.</p>
+        <p style="color: #2ecc71; text-shadow: 0 0 10px rgba(46, 204, 113, 0.6); font-size: 18px; font-weight: bold; margin-bottom: 25px;">اللَّهُمَّ صَلِّ وَسَلِّمْ عَلَى سَيِّدِنَا مُحَمَّدٍ ﷺ</p>
+        
+        <div style="margin-top: 20px;">
+            
+        </div>
     </footer>
 
     <script>
@@ -698,5 +703,6 @@
             window.speechSynthesis.speak(utterance);
         }
     </script>
+
 
 </body></html>
