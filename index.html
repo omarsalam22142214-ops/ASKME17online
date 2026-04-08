@@ -326,25 +326,61 @@
         }
 
         function joinOnlineRoom() {
-            myName = document.getElementById('online-name').value.trim();
-            roomCode = document.getElementById('online-room-code').value.trim();
-            if(!myName || !roomCode) return alert("اكتب اسمك ورقم الغرفة!");
+    myName = document.getElementById('online-name').value.trim();
+    roomCode = document.getElementById('online-room-code').value.trim();
+    if(!myName || !roomCode) return alert("اكتب اسمك ورقم الغرفة الأول!");
 
-            db.ref('trivia17_online/' + roomCode).once('value').then(snapshot => {
-                const data = snapshot.val();
-                if (data && data.status === 'waiting') {
+    db.ref('trivia17_online/' + roomCode).once('value').then(snapshot => {
+        const data = snapshot.val();
+        
+        if (data) {
+            // 1. نتأكد هل اسم اللاعب ده متسجل جوه اللعبة من قبل كده؟
+            let isAlreadyPlayer = data.playerOrder && data.playerOrder.includes(myName);
+            
+            // 2. لو هو صاحب الغرفة وخرج بالغلط، نرجعله الصلاحية
+            isHost = (data.host === myName);
+
+            // 3. مسموح له يدخل لو الغرفة لسه في الانتظار.. أو لو اللعبة شغالة وهو كان بيلعب وراجع
+            if (data.status === 'waiting' || isAlreadyPlayer) {
+                
+                // لو ده لاعب جديد خالص واللعبة لسه مبدأتش، ضيفه وصفر السكور بتاعه
+                if (!isAlreadyPlayer && data.status === 'waiting') {
                     let newPlayers = data.players || {};
                     newPlayers[myName] = { score: 0 };
                     let newOrder = data.playerOrder || [];
-                    if(!newOrder.includes(myName)) newOrder.push(myName);
+                    newOrder.push(myName);
                     
                     db.ref('trivia17_online/' + roomCode).update({ players: newPlayers, playerOrder: newOrder });
-                    setupOnlineLobby();
-                } else {
-                    alert("الغرفة دي مش موجودة أو اللعبة بدأت خلاص!");
                 }
-            });
+
+                // نظبط إعدادات الشاشة حسب هو الهوست ولا ضيف
+                document.getElementById('display-room-code').innerText = roomCode;
+                if(isHost) {
+                    document.getElementById('host-controls').style.display = 'block';
+                    document.getElementById('guest-waiting-msg').style.display = 'none';
+                } else {
+                    document.getElementById('host-controls').style.display = 'none';
+                    document.getElementById('guest-waiting-msg').style.display = 'block';
+                }
+
+                // لو اللعبة لسه في الانتظار، انقله لشاشة الانتظار
+                if (data.status === 'waiting') {
+                    switchScreen('online-waiting');
+                }
+                
+                // نشغل مراقب قاعدة البيانات (الـ Listener)
+                // الميزة هنا إن دالة listenToFirebaseRoom بتاعتك ذكية..
+                // لو لقت اللعبة حالة 'playing'، هتنقله فوراً لشاشة الأسئلة وتجيبله السكور والسؤال الحالي
+                listenToFirebaseRoom(); 
+
+            } else {
+                alert("اللعبة دي بدأت خلاص ومينفعش تدخل كلاعب جديد دلوقتي!");
+            }
+        } else {
+            alert("كود الغرفة ده مش موجود يا هندسة!");
         }
+    });
+}
 
         function setupOnlineLobby() {
             switchScreen('online-waiting');
